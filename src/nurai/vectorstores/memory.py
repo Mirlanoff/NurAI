@@ -32,3 +32,6 @@ class InMemoryVectorStore:
 
     def count(self) -> int:
         return len(self._items)
+
+    def healthcheck(self) -> bool:
+        return True

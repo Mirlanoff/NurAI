@@ -1,11 +1,12 @@
 import re
 
 from nurai.core.config import Settings
+from nurai.core.exceptions import EmptyDocumentError, VectorStoreUnavailableError
 from nurai.embeddings.base import Embedder
 from nurai.ingestion.chunker import TextChunker
 from nurai.models.domain import ScoredChunk
 from nurai.models.schemas import ChatResponse, DocumentIngestResponse, SearchResponse, SourceChunk
-from nurai.vectorstores.memory import InMemoryVectorStore
+from nurai.vectorstores.base import VectorStore
 
 
 class RagService:
@@ -13,7 +14,7 @@ class RagService:
         self,
         settings: Settings,
         embedder: Embedder,
-        vector_store: InMemoryVectorStore,
+        vector_store: VectorStore,
     ) -> None:
         self._settings = settings
         self._embedder = embedder
@@ -37,6 +38,8 @@ class RagService:
             metadata=metadata,
         )
         chunks = self._chunker.split(document)
+        if not chunks:
+            raise EmptyDocumentError("document has no indexable text")
         vectors = [self._embedder.embed(chunk.text) for chunk in chunks]
         self._vector_store.upsert(chunks=chunks, vectors=vectors)
         return DocumentIngestResponse(document_id=document.id, chunks_indexed=len(chunks))
@@ -64,6 +67,13 @@ class RagService:
         limit = top_k or self._settings.default_top_k
         query_vector = self._embedder.embed(query)
         return self._vector_store.search(vector=query_vector, top_k=limit)
+
+    def ensure_ready(self) -> None:
+        if not self._vector_store.healthcheck():
+            raise VectorStoreUnavailableError("vector store is not ready")
+
+    def documents_indexed(self) -> int:
+        return self._vector_store.count()
 
     def _build_answer(self, question: str, scored_chunks: list[ScoredChunk]) -> str:
         if not scored_chunks:

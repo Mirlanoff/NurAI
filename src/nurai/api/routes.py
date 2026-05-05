@@ -21,6 +21,21 @@ def health(settings: Settings = Depends(get_settings)) -> HealthResponse:
     return HealthResponse(status="ok", app=settings.app_name, version=settings.app_version)
 
 
+@router.get("/ready", response_model=HealthResponse)
+def ready(
+    settings: Settings = Depends(get_settings),
+    rag_service: RagService = Depends(get_rag_service),
+) -> HealthResponse:
+    rag_service.ensure_ready()
+    return HealthResponse(
+        status="ready",
+        app=settings.app_name,
+        version=settings.app_version,
+        vector_store=settings.vector_store_backend,
+        documents_indexed=rag_service.documents_indexed(),
+    )
+
+
 @router.post("/documents", response_model=DocumentIngestResponse)
 def ingest_document(
     payload: DocumentUploadRequest,
@@ -40,6 +55,11 @@ async def upload_document(
     rag_service: RagService = Depends(get_rag_service),
 ) -> DocumentIngestResponse:
     content = await file.read()
+    settings = get_settings()
+    if len(content) > settings.max_upload_bytes:
+        from nurai.core.exceptions import UploadTooLargeError
+
+        raise UploadTooLargeError("uploaded file exceeds configured size limit")
     text = content.decode("utf-8")
     return rag_service.ingest_text(
         title=file.filename or "uploaded-document",

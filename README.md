@@ -1,6 +1,6 @@
 # NurAI
 
-NurAI is a production-style RAG assistant for corporate knowledge bases. It is designed as a portfolio project for ML/LLM Engineer roles and demonstrates document ingestion, chunking, embeddings, vector search, RAG answers, FastAPI integration, Docker, tests, linting, and type checking.
+NurAI is a production-style RAG assistant for corporate knowledge bases. It is designed as a portfolio project for ML/LLM Engineer roles and demonstrates document ingestion, chunking, embeddings, vector search, RAG answers, FastAPI integration, Docker, CI, tests, linting, and type checking.
 
 ## Features
 
@@ -8,10 +8,11 @@ NurAI is a production-style RAG assistant for corporate knowledge bases. It is d
 - Document ingestion from JSON payloads or text file uploads.
 - Text cleaning, deterministic document IDs, chunking, and metadata.
 - Local hashing embeddings for reproducible development without paid API keys.
-- In-memory vector search for MVP and tests.
-- Qdrant included in Docker Compose for the production-ready next step.
+- In-memory vector search for local development and tests.
+- Qdrant vector store backend for production-like deployments.
 - RAG-style chat endpoint with source citations and confidence score.
-- pytest, ruff, and mypy configuration.
+- Readiness checks, upload size limits, structured error handling, and Docker healthchecks.
+- pytest, ruff, mypy, Makefile, and GitHub Actions CI.
 
 ## Architecture
 
@@ -21,28 +22,48 @@ Client
   -> RagService
   -> TextChunker
   -> HashingEmbedder
-  -> InMemoryVectorStore / Qdrant-ready boundary
+  -> VectorStore interface
+  -> InMemoryVectorStore or QdrantVectorStore
   -> Search and citation-based answer
 ```
 
 ## Quick start
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-uvicorn nurai.main:app --reload
+make install
+make run
 ```
 
 Open:
 
 - API docs: <http://127.0.0.1:8000/docs>
 - Health: <http://127.0.0.1:8000/health>
+- Readiness: <http://127.0.0.1:8000/ready>
+
+## Configuration
+
+Copy `.env.example` to `.env` and tune values as needed.
+
+| Variable | Description | Default |
+| --- | --- | --- |
+| `NURAI_VECTOR_STORE_BACKEND` | `memory` or `qdrant` | `qdrant` in Docker, `memory` locally |
+| `NURAI_QDRANT_URL` | Qdrant HTTP URL | `http://qdrant:6333` |
+| `NURAI_QDRANT_COLLECTION` | Qdrant collection name | `nurai_documents` |
+| `NURAI_CHUNK_SIZE` | Chunk size in characters | `700` |
+| `NURAI_CHUNK_OVERLAP` | Chunk overlap in characters | `100` |
+| `NURAI_DEFAULT_TOP_K` | Default retrieval limit | `5` |
+| `NURAI_MAX_UPLOAD_BYTES` | Upload endpoint size limit | `2000000` |
 
 ## Docker
 
 ```bash
-docker compose up --build
+make docker-up
+```
+
+For hot-reload local development with in-memory vector search:
+
+```bash
+make docker-dev
 ```
 
 ## Example usage
@@ -79,15 +100,14 @@ curl -X POST http://127.0.0.1:8000/chat \
 ## Quality checks
 
 ```bash
-ruff check .
-mypy src
-pytest
+make quality
 ```
+
+CI runs ruff, mypy, pytest, and Docker image build checks.
 
 ## Roadmap to Middle+
 
 - Replace hashing embeddings with sentence-transformers or hosted embedding APIs.
-- Add Qdrant backend implementation behind the vector store interface.
 - Add hybrid search: BM25 + vector search.
 - Add reranking with BGE reranker or Cohere rerank.
 - Add LangGraph workflow for query rewriting, retrieval, reranking, answer generation, and guardrails.

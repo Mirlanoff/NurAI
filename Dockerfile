@@ -1,15 +1,21 @@
-FROM python:3.11-slim
+FROM python:3.11-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
 
 WORKDIR /app
+
+RUN addgroup --system nurai \
+    && adduser --system --ingroup nurai nurai
 
 COPY pyproject.toml README.md ./
 COPY src ./src
 
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir ".[dev]"
+    && pip install --no-cache-dir "."
+
+USER nurai
 
 EXPOSE 8000
 

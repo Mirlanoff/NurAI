@@ -9,6 +9,7 @@ dependencies = [
     "pydantic>=2.9.0",
     "pydantic-settings>=2.5.0",
     "python-multipart>=0.0.12",
+    "qdrant-client>=1.12.1",
     "uvicorn[standard]>=0.30.6",
 ]
 

@@ -5,6 +5,8 @@ class HealthResponse(BaseModel):
     status: str
     app: str
     version: str
+    vector_store: str | None = None
+    documents_indexed: int | None = None
 
 
 class DocumentUploadRequest(BaseModel):
