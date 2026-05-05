@@ -1,0 +1,26 @@
+services:
+  api:
+    build: .
+    command: uvicorn nurai.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./src:/app/src
+    environment:
+      NURAI_ENVIRONMENT: local
+      NURAI_CHUNK_SIZE: 700
+      NURAI_CHUNK_OVERLAP: 100
+      NURAI_DEFAULT_TOP_K: 5
+    depends_on:
+      - qdrant
+
+  qdrant:
+    image: qdrant/qdrant:v1.12.1
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+
+volumes:
+  qdrant_storage:
