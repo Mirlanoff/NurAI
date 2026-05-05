@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, UploadFile
 
 from nurai.core.config import Settings, get_settings
+from nurai.core.exceptions import UploadTooLargeError
 from nurai.models.schemas import (
     ChatRequest,
     ChatResponse,
@@ -57,14 +58,13 @@ async def upload_document(
     content = await file.read()
     settings = get_settings()
     if len(content) > settings.max_upload_bytes:
-        from nurai.core.exceptions import UploadTooLargeError
-
         raise UploadTooLargeError("uploaded file exceeds configured size limit")
+    filename = file.filename or "uploaded-document"
     text = content.decode("utf-8")
     return rag_service.ingest_text(
-        title=file.filename or "uploaded-document",
+        title=filename,
         text=text,
-        source=f"upload:{file.filename}",
+        source=f"upload:{filename}",
         metadata={"content_type": file.content_type or "text/plain"},
     )
 
