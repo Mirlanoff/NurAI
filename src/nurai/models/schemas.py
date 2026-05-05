@@ -7,7 +7,7 @@ class HealthResponse(BaseModel):
     version: str
 
 
-class DocumentUploadResponse(BaseModel):
+class DocumentUploadRequest(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     text: str = Field(min_length=1)
     source: str = Field(default="manual", min_length=1, max_length=500)

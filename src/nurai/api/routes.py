@@ -5,7 +5,7 @@ from nurai.models.schemas import (
     ChatRequest,
     ChatResponse,
     DocumentIngestResponse,
-    DocumentUploadResponse,
+    DocumentUploadRequest,
     HealthResponse,
     SearchRequest,
     SearchResponse,
@@ -22,8 +22,8 @@ def health(settings: Settings = Depends(get_settings)) -> HealthResponse:
 
 
 @router.post("/documents", response_model=DocumentIngestResponse)
-async def ingest_document(
-    payload: DocumentUploadResponse,
+def ingest_document(
+    payload: DocumentUploadRequest,
     rag_service: RagService = Depends(get_rag_service),
 ) -> DocumentIngestResponse:
     return rag_service.ingest_text(
