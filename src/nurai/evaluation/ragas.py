@@ -42,7 +42,7 @@ def to_ragas_dataset(samples: Sequence[RagasEvaluationSample]) -> object:
         msg = "Install optional eval dependencies with `pip install -e '.[eval]'`."
         raise RuntimeError(msg) from exc
 
-    return Dataset.from_list(build_ragas_records(samples))  # type: ignore[no-any-return]
+    return Dataset.from_list(build_ragas_records(samples))
 
 
 def evaluate_with_ragas(

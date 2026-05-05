@@ -18,7 +18,7 @@ class SentenceTransformerEmbedder:
             msg = "Install optional ML dependencies with `pip install -e '.[ml]'`."
             raise RuntimeError(msg) from exc
 
-        self._model: SentenceTransformerModel = SentenceTransformer(model_name)  # type: ignore[no-untyped-call]
+        self._model: SentenceTransformerModel = SentenceTransformer(model_name)
         dimensions = self._model.get_sentence_embedding_dimension()
         if dimensions is None:
             msg = f"model {model_name} did not report embedding dimensions"

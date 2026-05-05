@@ -17,7 +17,7 @@ class CrossEncoderReranker:
             msg = "Install optional ML dependencies with `pip install -e '.[ml]'`."
             raise RuntimeError(msg) from exc
 
-        self._model: CrossEncoderModel = CrossEncoder(model_name)  # type: ignore[no-untyped-call]
+        self._model: CrossEncoderModel = CrossEncoder(model_name)
 
     def rerank(self, query: str, chunks: list[ScoredChunk], top_k: int) -> list[ScoredChunk]:
         pairs = [(query, scored_chunk.chunk.text) for scored_chunk in chunks]
