@@ -16,6 +16,7 @@ NurAI is a production-style RAG assistant for corporate knowledge bases. It is d
 - Optional Ragas dataset/evaluation helpers.
 - RAG-style chat endpoint with source citations and confidence score.
 - Readiness checks, upload size limits, structured error handling, and Docker healthchecks.
+- Optional API-key auth, in-memory rate limiting, request IDs, JSON request logs, and Prometheus metrics.
 - pytest, ruff, mypy, Makefile, and GitHub Actions CI.
 
 ## Architecture
@@ -45,6 +46,7 @@ Open:
 - API docs: <http://127.0.0.1:8000/docs>
 - Health: <http://127.0.0.1:8000/health>
 - Readiness: <http://127.0.0.1:8000/ready>
+- Metrics: <http://127.0.0.1:8000/metrics>
 
 ## Configuration
 
@@ -62,6 +64,12 @@ Copy `.env.example` to `.env` and tune values as needed.
 | `NURAI_CHUNK_OVERLAP` | Chunk overlap in characters | `100` |
 | `NURAI_DEFAULT_TOP_K` | Default retrieval limit | `5` |
 | `NURAI_MAX_UPLOAD_BYTES` | Upload endpoint size limit | `2000000` |
+| `NURAI_API_KEY` | Optional API key required via `X-API-Key` | empty |
+| `NURAI_RATE_LIMIT_ENABLED` | Enable in-memory per-client rate limit | `true` |
+| `NURAI_RATE_LIMIT_REQUESTS` | Requests allowed per window | `120` |
+| `NURAI_RATE_LIMIT_WINDOW_SECONDS` | Rate-limit window in seconds | `60` |
+| `NURAI_METRICS_ENABLED` | Enable Prometheus `/metrics` endpoint | `true` |
+| `NURAI_REQUEST_ID_HEADER` | Request correlation header | `X-Request-ID` |
 
 ## Docker
 
@@ -106,6 +114,21 @@ curl -X POST http://127.0.0.1:8000/chat \
   -d '{"question": "What components are needed for RAG?", "top_k": 3}'
 ```
 
+If `NURAI_API_KEY` is configured, pass it on protected endpoints:
+
+```bash
+curl -X POST http://127.0.0.1:8000/search \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $NURAI_API_KEY" \
+  -d '{"query": "What does RAG need?", "top_k": 3}'
+```
+
+Metrics:
+
+```bash
+curl http://127.0.0.1:8000/metrics
+```
+
 ## Quality checks
 
 ```bash
@@ -137,4 +160,4 @@ make install-eval
 - Add full Ragas quality reports and regression gates.
 - Add MLflow for experiment tracking.
 - Add Celery/Redis for asynchronous ingestion.
-- Add auth, rate limiting, Prometheus metrics, and Grafana dashboards.
+- Add Grafana dashboards and alerting rules.

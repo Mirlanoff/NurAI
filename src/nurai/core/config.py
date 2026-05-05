@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     qdrant_timeout_seconds: float = Field(default=5.0, gt=0)
     max_upload_bytes: int = Field(default=2_000_000, ge=1)
     log_level: str = "INFO"
+    api_key: str = ""
+    rate_limit_enabled: bool = True
+    rate_limit_requests: int = Field(default=120, ge=1)
+    rate_limit_window_seconds: int = Field(default=60, ge=1)
+    metrics_enabled: bool = True
+    request_id_header: str = "X-Request-ID"
 
     model_config = SettingsConfigDict(env_prefix="NURAI_", env_file=".env", extra="ignore")
 

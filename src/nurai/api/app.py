@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from nurai.api.middleware import register_middlewares
 from nurai.api.routes import router
 from nurai.core.config import get_settings
 from nurai.core.exceptions import (
@@ -19,6 +20,7 @@ def create_app() -> FastAPI:
         version=settings.app_version,
         description="Production-style RAG assistant for corporate knowledge bases.",
     )
+    register_middlewares(app, settings)
     app.include_router(router)
     register_exception_handlers(app)
     return app

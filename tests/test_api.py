@@ -108,3 +108,77 @@ def test_upload_size_limit(monkeypatch) -> None:
     )
 
     assert response.status_code == 413
+
+
+def test_protected_endpoint_requires_api_key(monkeypatch) -> None:
+    monkeypatch.setenv("NURAI_API_KEY", "secret-test-key")
+    clear_caches()
+    app = create_app()
+    client = TestClient(app)
+
+    response = client.post("/search", json={"query": "RAG", "top_k": 1})
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "invalid or missing API key"
+
+
+def test_protected_endpoint_accepts_api_key(monkeypatch) -> None:
+    monkeypatch.setenv("NURAI_API_KEY", "secret-test-key")
+    clear_caches()
+    app = create_app()
+    client = TestClient(app)
+
+    response = client.post(
+        "/search",
+        json={"query": "RAG", "top_k": 1},
+        headers={"X-API-Key": "secret-test-key"},
+    )
+
+    assert response.status_code == 200
+
+
+def test_request_id_header_is_returned() -> None:
+    clear_caches()
+    app = create_app()
+    client = TestClient(app)
+
+    response = client.get("/health", headers={"X-Request-ID": "test-request-id"})
+
+    assert response.status_code == 200
+    assert response.headers["X-Request-ID"] == "test-request-id"
+
+
+def test_metrics_endpoint_returns_prometheus_text() -> None:
+    clear_caches()
+    app = create_app()
+    client = TestClient(app)
+
+    response = client.get("/metrics")
+
+    assert response.status_code == 200
+    assert "nurai_requests_total" in response.text
+
+
+def test_metrics_endpoint_can_be_disabled(monkeypatch) -> None:
+    monkeypatch.setenv("NURAI_METRICS_ENABLED", "false")
+    clear_caches()
+    app = create_app()
+    client = TestClient(app)
+
+    response = client.get("/metrics")
+
+    assert response.status_code == 404
+
+
+def test_rate_limit_returns_429(monkeypatch) -> None:
+    monkeypatch.setenv("NURAI_RATE_LIMIT_REQUESTS", "1")
+    monkeypatch.setenv("NURAI_RATE_LIMIT_WINDOW_SECONDS", "60")
+    clear_caches()
+    app = create_app()
+    client = TestClient(app)
+
+    first = client.post("/search", json={"query": "RAG", "top_k": 1})
+    second = client.post("/search", json={"query": "RAG", "top_k": 1})
+
+    assert first.status_code == 200
+    assert second.status_code == 429
