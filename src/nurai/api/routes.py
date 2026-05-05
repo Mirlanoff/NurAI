@@ -33,6 +33,8 @@ def ready(
         app=settings.app_name,
         version=settings.app_version,
         vector_store=settings.vector_store_backend,
+        retrieval=settings.retrieval_backend,
+        reranker=settings.reranker_backend,
         documents_indexed=rag_service.documents_indexed(),
     )
 

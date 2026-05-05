@@ -1,9 +1,15 @@
-.PHONY: install lint typecheck test quality run docker-up docker-dev docker-down
+.PHONY: install install-ml install-eval lint typecheck test quality run docker-up docker-dev docker-down
 
 install:
 	python3 -m venv .venv
 	.venv/bin/pip install --upgrade pip
 	.venv/bin/pip install -e ".[dev]"
+
+install-ml:
+	.venv/bin/pip install -e ".[ml]"
+
+install-eval:
+	.venv/bin/pip install -e ".[eval]"
 
 lint:
 	.venv/bin/ruff check .

@@ -10,6 +10,10 @@ NurAI is a production-style RAG assistant for corporate knowledge bases. It is d
 - Local hashing embeddings for reproducible development without paid API keys.
 - In-memory vector search for local development and tests.
 - Qdrant vector store backend for production-like deployments.
+- Hybrid retrieval with BM25 + vector score fusion.
+- Optional lexical reranker and cross-encoder reranker integration.
+- Optional sentence-transformers embeddings for production-grade semantic retrieval.
+- Optional Ragas dataset/evaluation helpers.
 - RAG-style chat endpoint with source citations and confidence score.
 - Readiness checks, upload size limits, structured error handling, and Docker healthchecks.
 - pytest, ruff, mypy, Makefile, and GitHub Actions CI.
@@ -24,6 +28,8 @@ Client
   -> HashingEmbedder
   -> VectorStore interface
   -> InMemoryVectorStore or QdrantVectorStore
+  -> Optional BM25 hybrid fusion
+  -> Optional reranker
   -> Search and citation-based answer
 ```
 
@@ -47,6 +53,9 @@ Copy `.env.example` to `.env` and tune values as needed.
 | Variable | Description | Default |
 | --- | --- | --- |
 | `NURAI_VECTOR_STORE_BACKEND` | `memory` or `qdrant` | `qdrant` in Docker, `memory` locally |
+| `NURAI_EMBEDDING_BACKEND` | `hashing` or `sentence_transformers` | `hashing` |
+| `NURAI_RETRIEVAL_BACKEND` | `vector` or `hybrid` | `hybrid` in Docker |
+| `NURAI_RERANKER_BACKEND` | `none`, `lexical`, or `cross_encoder` | `lexical` in Docker |
 | `NURAI_QDRANT_URL` | Qdrant HTTP URL | `http://qdrant:6333` |
 | `NURAI_QDRANT_COLLECTION` | Qdrant collection name | `nurai_documents` |
 | `NURAI_CHUNK_SIZE` | Chunk size in characters | `700` |
@@ -105,13 +114,27 @@ make quality
 
 CI runs ruff, mypy, pytest, and Docker image build checks.
 
+## Optional ML and evaluation extras
+
+Install production semantic retrieval dependencies:
+
+```bash
+make install-ml
+NURAI_EMBEDDING_BACKEND=sentence_transformers make run
+```
+
+Install Ragas evaluation helpers:
+
+```bash
+make install-eval
+```
+
 ## Roadmap to Middle+
 
-- Replace hashing embeddings with sentence-transformers or hosted embedding APIs.
-- Add hybrid search: BM25 + vector search.
-- Add reranking with BGE reranker or Cohere rerank.
+- Add hosted embedding APIs and production model caching.
+- Add BGE reranker or Cohere rerank.
 - Add LangGraph workflow for query rewriting, retrieval, reranking, answer generation, and guardrails.
-- Add Ragas evaluation dataset and quality reports.
+- Add full Ragas quality reports and regression gates.
 - Add MLflow for experiment tracking.
 - Add Celery/Redis for asynchronous ingestion.
 - Add auth, rate limiting, Prometheus metrics, and Grafana dashboards.

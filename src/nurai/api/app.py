@@ -8,10 +8,12 @@ from nurai.core.exceptions import (
     UploadTooLargeError,
     VectorStoreUnavailableError,
 )
+from nurai.core.logging import configure_logging
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    configure_logging(settings.log_level)
     app = FastAPI(
         title=settings.app_name,
         version=settings.app_version,

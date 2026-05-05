@@ -6,6 +6,8 @@ class HealthResponse(BaseModel):
     app: str
     version: str
     vector_store: str | None = None
+    retrieval: str | None = None
+    reranker: str | None = None
     documents_indexed: int | None = None
 
 

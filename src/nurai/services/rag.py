@@ -1,4 +1,5 @@
 import re
+from collections.abc import Iterable
 
 from nurai.core.config import Settings
 from nurai.core.exceptions import EmptyDocumentError, VectorStoreUnavailableError
@@ -6,6 +7,8 @@ from nurai.embeddings.base import Embedder
 from nurai.ingestion.chunker import TextChunker
 from nurai.models.domain import ScoredChunk
 from nurai.models.schemas import ChatResponse, DocumentIngestResponse, SearchResponse, SourceChunk
+from nurai.rerankers.base import Reranker
+from nurai.retrieval.bm25 import BM25Index
 from nurai.vectorstores.base import VectorStore
 
 
@@ -15,10 +18,14 @@ class RagService:
         settings: Settings,
         embedder: Embedder,
         vector_store: VectorStore,
+        bm25_index: BM25Index | None = None,
+        reranker: Reranker | None = None,
     ) -> None:
         self._settings = settings
         self._embedder = embedder
         self._vector_store = vector_store
+        self._bm25_index = bm25_index
+        self._reranker = reranker
         self._chunker = TextChunker(
             chunk_size=settings.chunk_size,
             chunk_overlap=settings.chunk_overlap,
@@ -42,6 +49,8 @@ class RagService:
             raise EmptyDocumentError("document has no indexable text")
         vectors = [self._embedder.embed(chunk.text) for chunk in chunks]
         self._vector_store.upsert(chunks=chunks, vectors=vectors)
+        if self._bm25_index is not None:
+            self._bm25_index.upsert(chunks)
         return DocumentIngestResponse(document_id=document.id, chunks_indexed=len(chunks))
 
     def search(self, query: str, top_k: int | None = None) -> SearchResponse:
@@ -66,7 +75,20 @@ class RagService:
     def _retrieve(self, query: str, top_k: int | None) -> list[ScoredChunk]:
         limit = top_k or self._settings.default_top_k
         query_vector = self._embedder.embed(query)
-        return self._vector_store.search(vector=query_vector, top_k=limit)
+        candidate_limit = limit * self._settings.retrieval_candidate_multiplier
+        vector_results = self._vector_store.search(vector=query_vector, top_k=candidate_limit)
+        if self._settings.retrieval_backend == "hybrid" and self._bm25_index is not None:
+            lexical_results = self._bm25_index.search(query=query, top_k=candidate_limit)
+            results = self._merge_hybrid_results(
+                vector_results=vector_results,
+                lexical_results=lexical_results,
+            )
+        else:
+            results = vector_results
+
+        if self._reranker is not None:
+            return self._reranker.rerank(query=query, chunks=results, top_k=limit)
+        return results[:limit]
 
     def ensure_ready(self) -> None:
         if not self._vector_store.healthcheck():
@@ -118,3 +140,41 @@ class RagService:
     def _sentences(self, text: str) -> list[str]:
         sentences = [sentence.strip() for sentence in re.split(r"(?<=[.!?])\s+", text)]
         return [sentence for sentence in sentences if sentence]
+
+    def _merge_hybrid_results(
+        self,
+        vector_results: list[ScoredChunk],
+        lexical_results: list[ScoredChunk],
+    ) -> list[ScoredChunk]:
+        vector_weight = self._settings.hybrid_vector_weight
+        lexical_weight = 1.0 - vector_weight
+        vector_scores = self._normalize_scores(vector_results)
+        lexical_scores = self._normalize_scores(lexical_results)
+        chunks_by_id = {
+            scored_chunk.chunk.id: scored_chunk.chunk
+            for scored_chunk in [*vector_results, *lexical_results]
+        }
+        merged = [
+            ScoredChunk(
+                chunk=chunk,
+                score=vector_weight * vector_scores.get(chunk_id, 0.0)
+                + lexical_weight * lexical_scores.get(chunk_id, 0.0),
+            )
+            for chunk_id, chunk in chunks_by_id.items()
+        ]
+        merged.sort(key=lambda item: item.score, reverse=True)
+        return merged
+
+    def _normalize_scores(self, scored_chunks: Iterable[ScoredChunk]) -> dict[str, float]:
+        scored_list = list(scored_chunks)
+        if not scored_list:
+            return {}
+        scores = [item.score for item in scored_list]
+        min_score = min(scores)
+        max_score = max(scores)
+        if max_score == min_score:
+            return {item.chunk.id: 1.0 for item in scored_list}
+        return {
+            item.chunk.id: (item.score - min_score) / (max_score - min_score)
+            for item in scored_list
+        }
