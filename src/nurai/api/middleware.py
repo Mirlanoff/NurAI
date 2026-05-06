@@ -1,6 +1,6 @@
 import logging
 import time
-from collections import defaultdict, deque
+from collections import deque
 from collections.abc import Awaitable, Callable
 from uuid import uuid4
 
@@ -17,18 +17,35 @@ class FixedWindowRateLimiter:
     def __init__(self, requests: int, window_seconds: int) -> None:
         self._requests = requests
         self._window_seconds = window_seconds
-        self._hits: dict[str, deque[float]] = defaultdict(deque)
+        self._hits: dict[str, deque[float]] = {}
 
     def allow(self, key: str) -> bool:
         now = time.monotonic()
         window_start = now - self._window_seconds
-        hits = self._hits[key]
+        hits = self._hits.get(key)
+        if hits is None:
+            hits = deque()
         while hits and hits[0] < window_start:
             hits.popleft()
         if len(hits) >= self._requests:
+            self._hits[key] = hits
             return False
         hits.append(now)
+        self._hits[key] = hits
         return True
+
+    def cleanup(self) -> None:
+        now = time.monotonic()
+        window_start = now - self._window_seconds
+        for key in list(self._hits):
+            hits = self._hits[key]
+            while hits and hits[0] < window_start:
+                hits.popleft()
+            if not hits:
+                del self._hits[key]
+
+    def tracked_keys(self) -> int:
+        return len(self._hits)
 
 
 def register_middlewares(app: object, settings: Settings) -> None:
@@ -43,6 +60,8 @@ def register_middlewares(app: object, settings: Settings) -> None:
         requests=settings.rate_limit_requests,
         window_seconds=settings.rate_limit_window_seconds,
     )
+    cleanup_state = {"count": 0}
+    cleanup_interval = max(1, settings.rate_limit_requests)
 
     @fastapi_app.middleware("http")
     async def production_middleware(
@@ -53,6 +72,10 @@ def register_middlewares(app: object, settings: Settings) -> None:
         start = time.perf_counter()
         if _should_rate_limit(request=request, settings=settings):
             client_key = _client_key(request)
+            cleanup_state["count"] += 1
+            if cleanup_state["count"] >= cleanup_interval:
+                cleanup_state["count"] = 0
+                limiter.cleanup()
             if not limiter.allow(client_key):
                 metrics_registry.record_rate_limited()
                 rate_limited_response = JSONResponse(

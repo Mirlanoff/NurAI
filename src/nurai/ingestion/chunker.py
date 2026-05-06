@@ -1,5 +1,6 @@
 import re
 from hashlib import sha256
+from uuid import NAMESPACE_URL, uuid5
 
 from nurai.models.domain import Chunk, Document
 
@@ -13,6 +14,10 @@ def normalize_text(text: str) -> str:
 def build_document_id(title: str, text: str, source: str) -> str:
     payload = f"{title}\n{source}\n{normalize_text(text)}".encode()
     return sha256(payload).hexdigest()[:16]
+
+
+def build_chunk_id(document_id: str, position: int) -> str:
+    return str(uuid5(NAMESPACE_URL, f"nurai://chunk/{document_id}/{position}"))
 
 
 class TextChunker:
@@ -52,7 +57,7 @@ class TextChunker:
             end = min(start + self.chunk_size, len(document.text))
             chunk_text = document.text[start:end].strip()
             if chunk_text:
-                chunk_id = f"{document.id}:{position}"
+                chunk_id = build_chunk_id(document.id, position)
                 chunks.append(
                     Chunk(
                         id=chunk_id,
