@@ -72,23 +72,48 @@ class RagService:
             sources=sources,
         )
 
-    def _retrieve(self, query: str, top_k: int | None) -> list[ScoredChunk]:
+    @property
+    def settings(self) -> Settings:
+        return self._settings
+
+    def retrieve_candidates(self, query: str, top_k: int | None = None) -> list[ScoredChunk]:
+        """Run vector + optional hybrid retrieval without applying the reranker."""
         limit = top_k or self._settings.default_top_k
-        query_vector = self._embedder.embed(query)
         candidate_limit = limit * self._settings.retrieval_candidate_multiplier
+        query_vector = self._embedder.embed(query)
         vector_results = self._vector_store.search(vector=query_vector, top_k=candidate_limit)
         if self._settings.retrieval_backend == "hybrid" and self._bm25_index is not None:
             lexical_results = self._bm25_index.search(query=query, top_k=candidate_limit)
-            results = self._merge_hybrid_results(
+            return self._merge_hybrid_results(
                 vector_results=vector_results,
                 lexical_results=lexical_results,
             )
-        else:
-            results = vector_results
+        return vector_results
 
+    def apply_reranker(
+        self,
+        query: str,
+        scored_chunks: list[ScoredChunk],
+        top_k: int | None = None,
+    ) -> list[ScoredChunk]:
+        limit = top_k or self._settings.default_top_k
         if self._reranker is not None:
-            return self._reranker.rerank(query=query, chunks=results, top_k=limit)
-        return results[:limit]
+            return self._reranker.rerank(query=query, chunks=scored_chunks, top_k=limit)
+        return scored_chunks[:limit]
+
+    def build_answer(self, question: str, scored_chunks: list[ScoredChunk]) -> str:
+        return self._build_answer(question=question, scored_chunks=scored_chunks)
+
+    def confidence(self, scored_chunks: list[ScoredChunk]) -> float:
+        return self._confidence(scored_chunks)
+
+    def to_source_chunk(self, scored_chunk: ScoredChunk) -> SourceChunk:
+        return self._to_source_chunk(scored_chunk)
+
+    def _retrieve(self, query: str, top_k: int | None) -> list[ScoredChunk]:
+        limit = top_k or self._settings.default_top_k
+        candidates = self.retrieve_candidates(query=query, top_k=top_k)
+        return self.apply_reranker(query=query, scored_chunks=candidates, top_k=limit)
 
     def ensure_ready(self) -> None:
         if not self._vector_store.healthcheck():

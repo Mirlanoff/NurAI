@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     rate_limit_window_seconds: int = Field(default=60, ge=1)
     metrics_enabled: bool = True
     request_id_header: str = "X-Request-ID"
+    agent_enabled: bool = True
+    agent_min_confidence: float = Field(default=0.05, ge=0.0, le=1.0)
+    agent_max_query_rewrites: int = Field(default=2, ge=1, le=5)
 
     model_config = SettingsConfigDict(env_prefix="NURAI_", env_file=".env", extra="ignore")
 

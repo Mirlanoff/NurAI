@@ -2,12 +2,13 @@ from fastapi.testclient import TestClient
 
 from nurai.api.app import create_app
 from nurai.core.config import get_settings
-from nurai.services.dependencies import get_rag_service
+from nurai.services.dependencies import get_agent_workflow, get_rag_service
 
 
 def clear_caches() -> None:
     get_settings.cache_clear()
     get_rag_service.cache_clear()
+    get_agent_workflow.cache_clear()
 
 
 def test_health_endpoint() -> None:
@@ -182,3 +183,68 @@ def test_rate_limit_returns_429(monkeypatch) -> None:
 
     assert first.status_code == 200
     assert second.status_code == 429
+
+
+def test_agent_chat_endpoint_returns_trace() -> None:
+    clear_caches()
+    app = create_app()
+    client = TestClient(app)
+
+    client.post(
+        "/documents",
+        json={
+            "title": "RAG handbook",
+            "source": "unit-test",
+            "metadata": {"team": "ml"},
+            "text": (
+                "Retrieval-Augmented Generation combines retrieval with answer generation. "
+                "RAG systems need chunking, embeddings, vector search, and reranking."
+            ),
+        },
+    )
+
+    response = client.post(
+        "/agent/chat",
+        json={"question": "What does RAG need?", "top_k": 2},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["question"] == "What does RAG need?"
+    assert payload["answer"]
+    assert payload["sources"]
+    assert payload["query_variants"]
+    trace_names = [step["name"] for step in payload["trace"]]
+    assert trace_names == [
+        "rewrite_query",
+        "retrieve",
+        "rerank",
+        "generate_answer",
+        "guardrails",
+    ]
+
+
+def test_agent_chat_disabled_returns_503(monkeypatch) -> None:
+    monkeypatch.setenv("NURAI_AGENT_ENABLED", "false")
+    clear_caches()
+    app = create_app()
+    client = TestClient(app)
+
+    response = client.post(
+        "/agent/chat",
+        json={"question": "Anything", "top_k": 1},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "agent workflow is disabled"
+
+
+def test_readiness_reports_agent_status() -> None:
+    clear_caches()
+    app = create_app()
+    client = TestClient(app)
+
+    response = client.get("/ready")
+
+    assert response.status_code == 200
+    assert response.json()["agent"] == "ready"

@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from nurai.agents.workflow import AgentWorkflow
 from nurai.core.config import get_settings
 from nurai.embeddings.base import Embedder
 from nurai.embeddings.hashing import HashingEmbedder
@@ -52,3 +53,8 @@ def get_rag_service() -> RagService:
         bm25_index=BM25Index() if settings.retrieval_backend == "hybrid" else None,
         reranker=build_reranker(),
     )
+
+
+@lru_cache
+def get_agent_workflow() -> AgentWorkflow:
+    return AgentWorkflow(rag_service=get_rag_service())

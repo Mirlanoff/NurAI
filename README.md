@@ -15,6 +15,7 @@ NurAI is a production-style RAG assistant for corporate knowledge bases. It is d
 - Optional sentence-transformers embeddings for production-grade semantic retrieval.
 - Optional Ragas dataset/evaluation helpers.
 - RAG-style chat endpoint with source citations and confidence score.
+- LangGraph agent workflow (`/agent/chat`) with query rewriting, retrieval, reranking, answer generation, guardrails, and full step-by-step trace.
 - Readiness checks, upload size limits, structured error handling, and Docker healthchecks.
 - Optional API-key auth, in-memory rate limiting, request IDs, JSON request logs, and Prometheus metrics.
 - pytest, ruff, mypy, Makefile, and GitHub Actions CI.
@@ -33,6 +34,19 @@ Client
   -> Optional reranker
   -> Search and citation-based answer
 ```
+
+LangGraph agent workflow (`POST /agent/chat`):
+
+```text
+question
+  -> rewrite_query   (heuristic variants: original + keyword form)
+  -> retrieve        (vector + optional BM25 fusion across all variants)
+  -> rerank          (lexical or cross-encoder reranker)
+  -> generate_answer (citation-grounded extractive answer + confidence)
+  -> guardrails      (refuse on no-context or low-confidence)
+```
+
+Each step records a trace event that the agent endpoint returns alongside the answer, sources, and refusal reason (if any).
 
 ## Quick start
 
@@ -70,6 +84,9 @@ Copy `.env.example` to `.env` and tune values as needed.
 | `NURAI_RATE_LIMIT_WINDOW_SECONDS` | Rate-limit window in seconds | `60` |
 | `NURAI_METRICS_ENABLED` | Enable Prometheus `/metrics` endpoint | `true` |
 | `NURAI_REQUEST_ID_HEADER` | Request correlation header | `X-Request-ID` |
+| `NURAI_AGENT_ENABLED` | Expose the LangGraph agent endpoint | `true` |
+| `NURAI_AGENT_MIN_CONFIDENCE` | Minimum confidence for the agent to answer | `0.05` |
+| `NURAI_AGENT_MAX_QUERY_REWRITES` | Maximum number of query variants the agent generates | `2` |
 
 ## Docker
 
@@ -114,6 +131,17 @@ curl -X POST http://127.0.0.1:8000/chat \
   -d '{"question": "What components are needed for RAG?", "top_k": 3}'
 ```
 
+Agent chat (LangGraph workflow with query rewriting, reranking, and guardrails):
+
+```bash
+curl -X POST http://127.0.0.1:8000/agent/chat \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What components are needed for RAG?", "top_k": 3}'
+```
+
+The response includes the rewritten `query_variants`, a `trace` of the executed
+nodes, and a `refusal_reason` field set when guardrails block the answer.
+
 If `NURAI_API_KEY` is configured, pass it on protected endpoints:
 
 ```bash
@@ -152,12 +180,19 @@ Install Ragas evaluation helpers:
 make install-eval
 ```
 
+Install LangGraph agent dependencies (already pulled in by `make install` for
+development; only needed in production deployments that opt out of `[dev]`):
+
+```bash
+make install-agent
+```
+
 ## Roadmap to Middle+
 
 - Add hosted embedding APIs and production model caching.
 - Add BGE reranker or Cohere rerank.
-- Add LangGraph workflow for query rewriting, retrieval, reranking, answer generation, and guardrails.
 - Add full Ragas quality reports and regression gates.
 - Add MLflow for experiment tracking.
 - Add Celery/Redis for asynchronous ingestion.
+- Promote the LangGraph agent from heuristic rewriting to LLM-driven query rewriting and answer synthesis.
 - Add Grafana dashboards and alerting rules.

@@ -1,11 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from fastapi.responses import PlainTextResponse
 
+from nurai.agents.workflow import AgentWorkflow
 from nurai.api.security import require_api_key
 from nurai.core.config import Settings, get_settings
 from nurai.core.exceptions import UploadTooLargeError
 from nurai.core.metrics import metrics_registry
 from nurai.models.schemas import (
+    AgentChatRequest,
+    AgentChatResponse,
     ChatRequest,
     ChatResponse,
     DocumentIngestResponse,
@@ -14,7 +17,7 @@ from nurai.models.schemas import (
     SearchRequest,
     SearchResponse,
 )
-from nurai.services.dependencies import get_rag_service
+from nurai.services.dependencies import get_agent_workflow, get_rag_service
 from nurai.services.rag import RagService
 
 router = APIRouter()
@@ -29,8 +32,10 @@ def health(settings: Settings = Depends(get_settings)) -> HealthResponse:
 def ready(
     settings: Settings = Depends(get_settings),
     rag_service: RagService = Depends(get_rag_service),
+    agent_workflow: AgentWorkflow = Depends(get_agent_workflow),
 ) -> HealthResponse:
     rag_service.ensure_ready()
+    agent_status = "ready" if settings.agent_enabled and agent_workflow.healthcheck() else "off"
     return HealthResponse(
         status="ready",
         app=settings.app_name,
@@ -39,6 +44,7 @@ def ready(
         retrieval=settings.retrieval_backend,
         reranker=settings.reranker_backend,
         documents_indexed=rag_service.documents_indexed(),
+        agent=agent_status,
     )
 
 
@@ -99,3 +105,22 @@ def chat(
     rag_service: RagService = Depends(get_rag_service),
 ) -> ChatResponse:
     return rag_service.chat(question=payload.question, top_k=payload.top_k)
+
+
+@router.post("/agent/chat", response_model=AgentChatResponse)
+def agent_chat(
+    payload: AgentChatRequest,
+    _: None = Depends(require_api_key),
+    settings: Settings = Depends(get_settings),
+    agent_workflow: AgentWorkflow = Depends(get_agent_workflow),
+) -> AgentChatResponse:
+    if not settings.agent_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="agent workflow is disabled",
+        )
+    return agent_workflow.run(
+        question=payload.question,
+        top_k=payload.top_k,
+        min_confidence=payload.min_confidence,
+    )

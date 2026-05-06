@@ -1,4 +1,4 @@
-.PHONY: install install-ml install-eval lint typecheck test quality run docker-up docker-dev docker-down
+.PHONY: install install-ml install-eval install-agent lint typecheck test quality run docker-up docker-dev docker-down
 
 install:
 	python3 -m venv .venv
@@ -10,6 +10,9 @@ install-ml:
 
 install-eval:
 	.venv/bin/pip install -e ".[eval]"
+
+install-agent:
+	.venv/bin/pip install -e ".[agent]"
 
 lint:
 	.venv/bin/ruff check .
