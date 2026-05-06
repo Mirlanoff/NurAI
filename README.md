@@ -16,6 +16,7 @@ NurAI is a production-style RAG assistant for corporate knowledge bases. It is d
 - Optional Ragas dataset/evaluation helpers.
 - RAG-style chat endpoint with source citations and confidence score.
 - LangGraph agent workflow (`/agent/chat`) with query rewriting, retrieval, reranking, answer generation, guardrails, and full step-by-step trace.
+- Network-free regression-evaluation suite with retrieval recall, answer overlap, agent confidence, refusal rate, and a CI gate (`make eval`).
 - Readiness checks, upload size limits, structured error handling, and Docker healthchecks.
 - Optional API-key auth, in-memory rate limiting, request IDs, JSON request logs, and Prometheus metrics.
 - pytest, ruff, mypy, Makefile, and GitHub Actions CI.
@@ -165,6 +166,35 @@ make quality
 
 CI runs ruff, mypy, pytest, and Docker image build checks.
 
+## Regression evaluation
+
+The repo ships a small golden dataset (`eval/golden.jsonl`) and a corpus
+(`eval/corpus.jsonl`). The runner spins up an in-memory `RagService`, runs the
+LangGraph agent over every question, and computes:
+
+- `retrieval_recall` — fraction of expected keywords found in retrieved chunks
+- `answer_overlap` — token Jaccard between predicted answer and ground truth
+- `mean_confidence` — average reported confidence
+- `refusal_rate` — fraction of refused questions
+
+Thresholds are read from `eval/thresholds.json` and the runner exits non-zero
+when any threshold is violated, so it doubles as a CI quality gate:
+
+```bash
+make eval
+# or:
+python -m nurai.evaluation.runner \
+  --corpus eval/corpus.jsonl \
+  --dataset eval/golden.jsonl \
+  --thresholds eval/thresholds.json \
+  --report eval/report.json
+```
+
+The `evaluation` GitHub Actions job runs the same command and uploads the
+generated report as an artifact on every PR. The Ragas helpers in
+`nurai.evaluation.ragas` remain available for richer metrics when LLM access
+is provisioned (`pip install -e '.[eval]'`).
+
 ## Optional ML and evaluation extras
 
 Install production semantic retrieval dependencies:
@@ -191,7 +221,7 @@ make install-agent
 
 - Add hosted embedding APIs and production model caching.
 - Add BGE reranker or Cohere rerank.
-- Add full Ragas quality reports and regression gates.
+- Promote the network-free regression suite to full Ragas LLM-judged quality reports.
 - Add MLflow for experiment tracking.
 - Add Celery/Redis for asynchronous ingestion.
 - Promote the LangGraph agent from heuristic rewriting to LLM-driven query rewriting and answer synthesis.

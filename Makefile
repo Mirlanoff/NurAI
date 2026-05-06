@@ -1,4 +1,4 @@
-.PHONY: install install-ml install-eval install-agent lint typecheck test quality run docker-up docker-dev docker-down
+.PHONY: install install-ml install-eval install-agent lint typecheck test quality eval run docker-up docker-dev docker-down
 
 install:
 	python3 -m venv .venv
@@ -24,6 +24,13 @@ test:
 	.venv/bin/pytest
 
 quality: lint typecheck test
+
+eval:
+	.venv/bin/python -m nurai.evaluation.runner \
+		--corpus eval/corpus.jsonl \
+		--dataset eval/golden.jsonl \
+		--thresholds eval/thresholds.json \
+		--report eval/report.json
 
 run:
 	.venv/bin/uvicorn nurai.main:app --reload

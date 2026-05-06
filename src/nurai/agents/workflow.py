@@ -23,6 +23,10 @@ class AgentWorkflow:
     def nodes(self) -> AgentNodes:
         return self._nodes
 
+    @property
+    def rag_service(self) -> RagService:
+        return self._rag_service
+
     def _ensure_graph(self) -> Any:
         if self._graph is None:
             from nurai.agents.graph import build_graph
