@@ -1,0 +1,1 @@
+"""NurAI RAG assistant."""
